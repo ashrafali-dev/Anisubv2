@@ -128,7 +128,9 @@ def extract():
     result['subtitle'] = result['subtitles'][0]['url'] if result.get('subtitles') else None
     return jsonify(result)
 
-
+@app.route('/bookmarklet')
+def bookmarklet():
+    return render_template('bookmarklet.html')
 @app.route('/upload_sub', methods=['POST'])
 def upload_sub():
     if 'file' not in request.files:
