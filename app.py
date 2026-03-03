@@ -34,22 +34,18 @@ setup_fonts()
 
 def srt_to_ass(srt_path, ass_path, font_name='Noto Sans Bengali', font_size=24,
                color='White', position='bottom', font_style='Normal', bg='None'):
-    color_map = {
-        'White': '&H00FFFFFF', 'Yellow': '&H0000FFFF', 'Cyan': '&H00FFFF00',
-        'white': '&H00FFFFFF', 'yellow': '&H0000FFFF', 'cyan': '&H00FFFF00',
-    }
+    color_map = {'White':'&H00FFFFFF','Yellow':'&H0000FFFF','Cyan':'&H00FFFF00',
+                 'white':'&H00FFFFFF','yellow':'&H0000FFFF','cyan':'&H00FFFF00'}
     p_color = color_map.get(color, '&H00FFFFFF')
-    align_map = {'bottom': 2, 'middle': 5, 'top': 8}
-    align = align_map.get(position, 2)
+    align = {'bottom':2,'middle':5,'top':8}.get(position, 2)
     bold = -1 if font_style == 'Bold' else 0
     italic = -1 if font_style == 'Italic' else 0
-    if bg in ('Semi-transparent', 'semi'):
+    if bg in ('Semi-transparent','semi'):
         border_style, back_color = 3, '&H80000000'
-    elif bg in ('Black box', 'black'):
+    elif bg in ('Black box','black'):
         border_style, back_color = 3, '&H00000000'
     else:
         border_style, back_color = 1, '&H00000000'
-
     header = f"""[Script Info]
 ScriptType: v4.00+
 PlayResX: 1280
@@ -67,7 +63,6 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         t = t.strip().replace(',', '.')
         parts = t.split(':')
         return f"{parts[0]}:{parts[1]}:{parts[2]}"
-
     srt_text = open(srt_path, encoding='utf-8').read().strip()
     blocks = re.split(r'\n\s*\n', srt_text)
     events = []
@@ -86,20 +81,19 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         f.write(header + '\n'.join(events))
     return ass_path
 
-def apply_netflix_style(ass_file_path):
+def apply_netflix_style(ass_path):
     try:
-        with open(ass_file_path, 'r', encoding='utf-8') as f:
-            content = f.read()
-        content = re.sub(
+        with open(ass_path, 'r', encoding='utf-8') as f:
+            c = f.read()
+        c = re.sub(
             r'Style: Default,[^\n]+',
             'Style: Default,Noto Sans Bengali,28,&H00FFFFFF,&H000000FF,&H00000000,&H64000000,0,0,0,0,100,100,0,0,3,0,0,2,20,20,25,1',
-            content
+            c
         )
-        with open(ass_file_path, 'w', encoding='utf-8') as f:
-            f.write(content)
-        return True
+        with open(ass_path, 'w', encoding='utf-8') as f:
+            f.write(c)
     except:
-        return False
+        pass
 
 app = Flask(__name__)
 os.makedirs('/tmp/anisub', exist_ok=True)
@@ -154,19 +148,13 @@ def start_task():
             path = f"/tmp/anisub/{uuid.uuid4()}_{f.filename}"
             f.save(path)
             data['trans_sub_file'] = path
-        data['sub_type'] = data.get('sub_mode', data.get('sub_type', 'url'))
+        data['sub_type'] = data.get('sub_mode', data.get('sub_type', 'none'))
         data['trans_sub_url'] = data.get('translate_url', data.get('trans_sub_url', ''))
         data['trans_engine'] = data.get('translate_engine', data.get('trans_engine', 'google'))
         data['trans_lang'] = 'bn'
         data['gemini_api_key'] = data.get('gemini_key', data.get('gemini_api_key', ''))
         data['tg_title'] = data.get('title', data.get('tg_title', 'AniSub Video'))
         data['tg_caption'] = data.get('caption', data.get('tg_caption', ''))
-        data['font_name'] = data.get('font_name', 'Noto Sans Bengali')
-        data['font_size'] = data.get('font_size', '24')
-        data['color'] = data.get('font_color', data.get('color', 'White'))
-        data['font_style'] = data.get('font_style', 'Normal')
-        data['position'] = data.get('position', 'bottom')
-        data['bg'] = data.get('background', data.get('bg', 'None'))
     else:
         data = request.json or {}
 
@@ -187,14 +175,14 @@ def get_status(task_id):
         return jsonify({'error': 'Task not found'}), 404
     offset = int(request.args.get('offset', 0))
     task = tasks[task_id]
-    status_to_stage = {
-        'Downloading': 'download', 'Subtitle': 'translate',
-        'Processing': 'process', 'Uploading': 'upload',
-        'Done': 'done', 'Error': 'error'
+    stage_map = {
+        'Downloading':'download','Subtitle':'translate',
+        'Processing':'process','Uploading':'upload',
+        'Done':'done','Error':'error'
     }
     return jsonify({
-        'status': task['status'].lower() if task['status'] in ('Done', 'Error') else task['status'],
-        'stage': status_to_stage.get(task['status'], 'download'),
+        'status': task['status'].lower() if task['status'] in ('Done','Error') else task['status'],
+        'stage': stage_map.get(task['status'], 'download'),
         'progress': task['progress'],
         'logs': task['logs'][offset:],
         'tg_link': task['tg_link'],
@@ -209,38 +197,22 @@ def preview(task_id):
         return send_file(tasks[task_id]['output_path'])
     return "Not found", 404
 
-def get_duration(file_path):
+def get_duration(path):
     try:
         res = subprocess.run(
-            ['ffprobe', '-v', 'error', '-show_entries', 'format=duration',
-             '-of', 'default=noprint_wrappers=1:nokey=1', file_path],
+            ['ffprobe','-v','error','-show_entries','format=duration',
+             '-of','default=noprint_wrappers=1:nokey=1',path],
             capture_output=True, text=True, timeout=10)
         return float(res.stdout.strip())
     except:
         return None
 
-def parse_time_to_sec(time_str):
+def parse_time(t):
     try:
-        h, m, s = time_str.split(':')
-        return int(h) * 3600 + int(m) * 60 + float(s)
+        h,m,s = t.split(':')
+        return int(h)*3600 + int(m)*60 + float(s)
     except:
         return 0
-
-def prepare_ass(srt_content, task_id, font_name, font_size, color, position, font_style, bg):
-    sub_file_path = f"/tmp/anisub/{task_id}.srt"
-    ass_file_path = f"/tmp/anisub/{task_id}.ass"
-    with open(sub_file_path, 'w', encoding='utf-8') as f:
-        f.write(srt_content)
-    conv = subprocess.run(
-        ['ffmpeg', '-y', '-i', sub_file_path, ass_file_path],
-        capture_output=True, text=True
-    )
-    if conv.returncode != 0 or not os.path.exists(ass_file_path):
-        srt_to_ass(sub_file_path, ass_file_path,
-                   font_name=font_name, font_size=int(str(font_size)),
-                   color=color, position=position, font_style=font_style, bg=bg)
-    apply_netflix_style(ass_file_path)
-    return ass_file_path, sub_file_path
 
 def process_task(task_id, data):
     task = tasks[task_id]
@@ -250,24 +222,21 @@ def process_task(task_id, data):
 
     try:
         log("Task started", "🚀")
-
-        video_url = data.get('video_url', '')
-        iframe_url = data.get('iframe_url', '')
+        video_url = data.get('video_url', '').strip()
         cookie_path = '/tmp/anisub/cookies.txt' if os.path.exists('/tmp/anisub/cookies.txt') else None
-
         final_video_path = f"/tmp/anisub/{task_id}_final.mp4"
         raw_video_path = f"/tmp/anisub/{task_id}_raw.mp4"
 
-        # ── STEP 1: SUBTITLE ─────────────────────────────────────
+        # ── SUBTITLE ─────────────────────────────────────────────
         task['status'] = 'Subtitle'
         task['stage'] = 'translate'
-        log("Processing subtitle...", "📝")
+        log("Subtitle processing...", "📝")
 
-        sub_type = data.get('sub_type', 'url')
+        sub_type = data.get('sub_type', 'none')
         srt_content = ""
 
         if sub_type == 'file':
-            sub_path = data.get('sub_file_path')
+            sub_path = data.get('sub_file_path', '')
             if sub_path and os.path.exists(sub_path):
                 with open(sub_path, 'r', encoding='utf-8') as f:
                     srt_content = f.read()
@@ -276,66 +245,58 @@ def process_task(task_id, data):
                 log("Subtitle loaded from file", "✅")
 
         elif sub_type == 'url':
-            sub_url = data.get('sub_url', '')
+            sub_url = data.get('sub_url', '').strip()
             if sub_url:
                 res = requests.get(sub_url, timeout=15)
                 srt_content = res.text
                 if '.vtt' in sub_url or 'WEBVTT' in srt_content:
                     srt_content = convert_vtt_to_srt(srt_content)
-                log("Subtitle downloaded from URL", "✅")
+                log("Subtitle downloaded", "✅")
 
         elif sub_type == 'translate':
             engine = data.get('trans_engine', 'google')
+            src_url = data.get('trans_sub_url', '').strip()
             src_file = data.get('trans_sub_file', '')
-            src_url = data.get('trans_sub_url', '')
             api_key = data.get('gemini_api_key', '')
-            dest_lang = data.get('trans_lang', 'bn')
-            src_content = ""
+            src = ""
             if src_file and os.path.exists(src_file):
                 with open(src_file, 'r', encoding='utf-8') as f:
-                    src_content = f.read()
+                    src = f.read()
             elif src_url:
                 res = requests.get(src_url, timeout=15)
-                src_content = res.text
-            if src_content:
-                if 'WEBVTT' in src_content or src_url.endswith('.vtt'):
-                    src_content = convert_vtt_to_srt(src_content)
+                src = res.text
+            if src:
+                if 'WEBVTT' in src or src_url.endswith('.vtt'):
+                    src = convert_vtt_to_srt(src)
                 log(f"Translating via {engine}...", "🔄")
-                if engine == 'gemini' and api_key:
-                    srt_content = translate_gemini(src_content, api_key, dest_lang)
-                else:
-                    srt_content = translate_google(src_content, dest_lang)
-                log("Translation complete", "✅")
+                srt_content = translate_gemini(src, api_key, 'bn') if engine == 'gemini' and api_key else translate_google(src, 'bn')
+                log("Translation done", "✅")
 
         task['progress'] = 20
 
-        # ── STEP 2: PREPARE ASS ──────────────────────────────────
+        # ── ASS PREPARE ──────────────────────────────────────────
         ass_file_path = None
-        sub_file_path = None
-        font_name = data.get('font_name', 'Noto Sans Bengali')
-        font_size = data.get('font_size', '28')
-        color = data.get('color', 'White')
-        bg = data.get('bg', 'None')
-        position = data.get('position', 'bottom')
-        font_style = data.get('font_style', 'Normal')
-
         if srt_content:
-            ass_file_path, sub_file_path = prepare_ass(
-                srt_content, task_id, font_name, font_size, color, position, font_style, bg)
-            log("ASS subtitle ready (Netflix style) ✨", "✅")
+            sub_file_path = f"/tmp/anisub/{task_id}.srt"
+            ass_file_path = f"/tmp/anisub/{task_id}.ass"
+            with open(sub_file_path, 'w', encoding='utf-8') as f:
+                f.write(srt_content)
+            conv = subprocess.run(['ffmpeg','-y','-i',sub_file_path,ass_file_path], capture_output=True, text=True)
+            if conv.returncode != 0 or not os.path.exists(ass_file_path):
+                srt_to_ass(sub_file_path, ass_file_path)
+            apply_netflix_style(ass_file_path)
+            log("Subtitle ready (Netflix style) ✨", "✅")
 
         task['progress'] = 30
+        sub_filter = f"scale=1280:-2,ass='{ass_file_path}':fontsdir=/tmp/fonts/" if ass_file_path else "scale=1280:-2"
 
-        # ── STEP 3: PROCESS VIDEO ────────────────────────────────
+        # ── VIDEO PROCESS ─────────────────────────────────────────
         task['status'] = 'Processing'
         task['stage'] = 'process'
 
-        is_m3u8 = '.m3u8' in video_url
-        sub_filter = f"scale=1280:-2,ass='{ass_file_path}':fontsdir=/tmp/fonts/" if ass_file_path else "scale=1280:-2"
-
-        if is_m3u8 and ass_file_path:
-            # ⚡ m3u8 → সরাসরি subtitle burn → mp4 (download নেই!)
-            log("m3u8 direct burn শুরু ⚡ (download step নেই!)", "🔥")
+        if '.m3u8' in video_url:
+            # ⚡ m3u8 → DIRECT BURN (no download!)
+            log("m3u8 direct burn ⚡ (no download step!)", "🔥")
             cmd = [
                 'ffmpeg', '-y',
                 '-user_agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
@@ -353,77 +314,60 @@ def process_task(task_id, data):
                     task['logs'].append(f"[FFMPEG] {l}")
                     if 'time=' in l:
                         try:
-                            sec = parse_time_to_sec(l.split('time=')[1].split()[0])
+                            sec = parse_time(l.split('time=')[1].split()[0])
                             task['progress'] = min(30 + int(sec / 2), 74)
                         except:
                             pass
             proc.wait()
+            if proc.returncode != 0 or not os.path.exists(final_video_path) or os.path.getsize(final_video_path) < 1024*1024:
+                raise Exception("m3u8 direct burn failed")
+            log("Burn complete!", "✅")
 
-            if proc.returncode != 0 or not os.path.exists(final_video_path):
-                log("Direct burn failed, falling back to download...", "⚠️")
-                is_m3u8 = False
-
-        if not is_m3u8:
-            # ── DOWNLOAD ─────────────────────────────────────────
+        else:
+            # mp4 or other — download then burn
             task['status'] = 'Downloading'
             task['stage'] = 'download'
             downloaded = False
 
-            for attempt_url, label in [(iframe_url, 'iframe'), (video_url, 'video')]:
-                if downloaded or not attempt_url:
-                    continue
-                if shutil.which('yt-dlp'):
-                    log(f"yt-dlp trying {label}...", "⬇️")
-                    cmd = ['yt-dlp', '-o', raw_video_path, '--no-playlist']
-                    if cookie_path:
-                        cmd += ['--cookies', cookie_path]
-                    cmd.append(attempt_url)
-                    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-                    for line in iter(proc.stdout.readline, ''):
-                        l = line.strip()
-                        if '[download]' in l and '%' in l:
-                            try:
-                                pct = float(l.split('%')[0].split()[-1])
-                                task['progress'] = int(pct * 0.25)
-                            except:
-                                pass
-                        if l:
-                            task['logs'].append(f"[YT-DLP] {l}")
-                    proc.wait()
-                    if os.path.exists(raw_video_path) and os.path.getsize(raw_video_path) > 1024 * 1024:
-                        downloaded = True
-                        log(f"Downloaded via yt-dlp ({label})", "✅")
-
-            if not downloaded and video_url:
-                log("FFmpeg download fallback...", "⬇️")
-                cmd = ['ffmpeg', '-y', '-user_agent', 'Mozilla/5.0',
-                       '-i', video_url, '-c', 'copy', raw_video_path]
-                proc = subprocess.Popen(cmd, stderr=subprocess.PIPE, text=True)
-                for line in iter(proc.stderr.readline, ''):
+            if shutil.which('yt-dlp'):
+                log(f"Downloading...", "⬇️")
+                cmd = ['yt-dlp', '-o', raw_video_path, '--no-playlist']
+                if cookie_path:
+                    cmd += ['--cookies', cookie_path]
+                cmd.append(video_url)
+                proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+                for line in iter(proc.stdout.readline, ''):
                     l = line.strip()
+                    if '[download]' in l and '%' in l:
+                        try:
+                            pct = float(l.split('%')[0].split()[-1])
+                            task['progress'] = int(pct * 0.25)
+                        except:
+                            pass
                     if l:
-                        task['logs'].append(f"[FFMPEG-DL] {l}")
+                        task['logs'].append(f"[YT-DLP] {l}")
                 proc.wait()
-                if os.path.exists(raw_video_path) and os.path.getsize(raw_video_path) > 1024 * 1024:
+                if os.path.exists(raw_video_path) and os.path.getsize(raw_video_path) > 1024*1024:
                     downloaded = True
-                    task['progress'] = 25
-                    log("Downloaded via FFmpeg", "✅")
+                    log("Download done", "✅")
 
             if not downloaded:
-                raise Exception("All download methods failed")
+                log("FFmpeg download fallback...", "⬇️")
+                subprocess.run(['ffmpeg','-y','-user_agent','Mozilla/5.0','-i',video_url,'-c','copy',raw_video_path], capture_output=True)
+                if os.path.exists(raw_video_path) and os.path.getsize(raw_video_path) > 1024*1024:
+                    downloaded = True
 
-            # ── BURN ─────────────────────────────────────────────
+            if not downloaded:
+                raise Exception("Download failed")
+
             task['status'] = 'Processing'
             task['stage'] = 'process'
             log("Burning subtitles...", "🔥")
             duration = get_duration(raw_video_path)
 
-            cmd = ['ffmpeg', '-y', '-i', raw_video_path,
-                   '-vf', sub_filter,
-                   '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23',
-                   '-threads', '0', '-c:a', 'copy',
-                   '-max_muxing_queue_size', '1024',
-                   final_video_path]
+            cmd = ['ffmpeg','-y','-i',raw_video_path,'-vf',sub_filter,
+                   '-c:v','libx264','-preset','ultrafast','-crf','23',
+                   '-threads','0','-c:a','copy','-max_muxing_queue_size','1024',final_video_path]
             proc = subprocess.Popen(cmd, stderr=subprocess.PIPE, text=True)
             for line in iter(proc.stderr.readline, ''):
                 l = line.strip()
@@ -431,44 +375,42 @@ def process_task(task_id, data):
                     task['logs'].append(f"[FFMPEG] {l}")
                     if 'time=' in l and duration:
                         try:
-                            sec = parse_time_to_sec(l.split('time=')[1].split()[0])
-                            task['progress'] = 35 + int((sec / duration) * 40)
+                            sec = parse_time(l.split('time=')[1].split()[0])
+                            task['progress'] = 35 + int((sec/duration)*40)
                         except:
                             pass
             proc.wait()
-
             if proc.returncode != 0 or not os.path.exists(final_video_path):
-                log("Burn failed, using raw video", "⚠️")
                 shutil.copy(raw_video_path, final_video_path)
 
         task['output_path'] = final_video_path
         task['has_preview'] = True
 
-        # ── STEP 4: UPLOAD ───────────────────────────────────────
-        if task.get('tg_link') or task.get('uploading'):
+        # ── UPLOAD ───────────────────────────────────────────────
+        if task.get('uploading'):
             return
-
         task['uploading'] = True
         task['status'] = 'Uploading'
         task['stage'] = 'upload'
         log("Uploading to Telegram...", "☁️")
-
-        title = data.get('tg_title', 'AniSub Video')
-        caption = data.get('tg_caption', '')
 
         def prog_cb(pct):
             task['progress'] = 75 + int(pct * 0.25)
             if pct % 10 == 0:
                 log(f"Upload: {pct}%", "📤")
 
-        tg_link = upload_to_telegram(final_video_path, title, caption, prog_cb)
+        tg_link = upload_to_telegram(
+            final_video_path,
+            data.get('tg_title', 'AniSub Video'),
+            data.get('tg_caption', ''),
+            prog_cb
+        )
         task['tg_link'] = tg_link
         task['post_link'] = tg_link
-
         task['progress'] = 100
         task['status'] = 'Done'
         task['stage'] = 'done'
-        log("Task completed!", "✅")
+        log("Done!", "✅")
 
         def cleanup():
             threading.Event().wait(3600)
@@ -484,7 +426,7 @@ def process_task(task_id, data):
         task['status'] = 'Error'
         task['stage'] = 'error'
         task['error'] = str(e)
-        log(f"Task failed: {e}", "❌")
+        log(f"Failed: {e}", "❌")
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8080)
